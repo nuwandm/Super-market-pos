@@ -97,6 +97,8 @@ const api = {
   settings: {
     getSupermarket:    ()                                         => invoke('settings:getSupermarket'),
     updateSupermarket: (id: string, data: Record<string, unknown>) => invoke('settings:updateSupermarket', id, data),
+    uploadLogo:        (supermarketId: string)                    => invoke('settings:uploadLogo', supermarketId),
+    removeLogo:        (supermarketId: string)                    => invoke('settings:removeLogo', supermarketId),
     getBranch:         (branchId: string)                         => invoke('settings:getBranch', branchId),
     updateBranch:      (id: string, data: Record<string, unknown>) => invoke('settings:updateBranch', id, data),
     getUnits:          (branchId: string)                         => invoke('settings:getUnits', branchId),

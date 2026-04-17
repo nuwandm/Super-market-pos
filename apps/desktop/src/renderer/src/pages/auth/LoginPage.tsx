@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
+import dreamLabsLogo from '@/assets/dream-labs-logo.png'
 import { toast } from 'sonner'
 import { Store, Delete, Keyboard } from 'lucide-react'
 import { api } from '@/lib/api'
@@ -107,7 +108,7 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="flex h-screen items-center justify-center bg-background">
+    <div className="flex h-screen flex-col items-center justify-center bg-background gap-6">
       <div className="w-full max-w-sm space-y-6">
         {/* Header */}
         <div className="text-center space-y-2">
@@ -226,6 +227,16 @@ export default function LoginPage() {
             {loading ? 'Signing in...' : 'Sign In'}
           </Button>
         </div>
+      </div>
+
+      {/* Vendor branding */}
+      <div className="flex flex-col items-center gap-1.5">
+        <img src={dreamLabsLogo} alt="Dream Labs IT Solutions" className="h-7 w-auto object-contain opacity-80" />
+        <p className="text-xs text-muted-foreground">
+          Powered by{' '}
+          <span className="font-semibold text-foreground/80">Dream Labs IT Solutions</span>
+        </p>
+        <p className="text-xs text-muted-foreground">WhatsApp: 070 615 1051</p>
       </div>
     </div>
   )

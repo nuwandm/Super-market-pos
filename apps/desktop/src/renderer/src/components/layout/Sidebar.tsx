@@ -1,9 +1,10 @@
-import React from 'react'
+import React, { useState, useRef } from 'react'
 import { NavLink, useNavigate } from 'react-router-dom'
+import dreamLabsLogo from '@/assets/dream-labs-logo.png'
 import {
   ShoppingCart, LayoutDashboard, Package, Tag, Warehouse,
   History, Settings, Users, BarChart3, LogOut, Store, Clock,
-  Truck, PackagePlus,
+  Truck, PackagePlus, MessageCircle, Mail, Phone,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useAuthStore } from '@/stores/auth.store'
@@ -37,6 +38,16 @@ export default function Sidebar() {
   const { session, supermarket, logout } = useAuthStore()
   const { status, daysRemaining } = useLicenseStore()
   const navigate = useNavigate()
+  const [showContact, setShowContact] = useState(false)
+  const hideContactTimeout = useRef<ReturnType<typeof setTimeout>>()
+
+  function handleContactEnter() {
+    clearTimeout(hideContactTimeout.current)
+    setShowContact(true)
+  }
+  function handleContactLeave() {
+    hideContactTimeout.current = setTimeout(() => setShowContact(false), 150)
+  }
 
   async function handleLogout() {
     try {
@@ -54,8 +65,12 @@ export default function Sidebar() {
     <aside className="flex h-screen w-56 flex-col border-r border-border bg-card">
       {/* Logo */}
       <div className="flex items-center gap-2 px-4 py-4 border-b border-border">
-        <div className="flex h-8 w-8 items-center justify-center rounded-md bg-primary">
-          <Store className="h-4 w-4 text-primary-foreground" />
+        <div className="flex h-8 w-8 items-center justify-center rounded-md bg-primary overflow-hidden shrink-0">
+          {supermarket?.logoPath ? (
+            <img src={supermarket.logoPath} alt="Logo" className="h-full w-full object-contain" />
+          ) : (
+            <Store className="h-4 w-4 text-primary-foreground" />
+          )}
         </div>
         <div className="min-w-0">
           <p className="truncate text-sm font-semibold">{supermarket?.name ?? 'POS'}</p>
@@ -103,20 +118,87 @@ export default function Sidebar() {
       )}
 
       {/* User info + logout */}
-      <div className="border-t border-border p-3 space-y-2">
-        <div className="px-1">
+      <div className="border-t border-border px-3 py-2 flex items-center gap-2">
+        <div className="flex-1 min-w-0 px-1">
           <p className="text-sm font-medium truncate">{session?.staffName}</p>
           <p className="text-xs text-muted-foreground capitalize">{session?.role?.replace('_', ' ')}</p>
         </div>
         <Button
           variant="ghost"
-          size="sm"
-          className="w-full justify-start text-muted-foreground hover:text-destructive"
+          size="icon"
+          className="shrink-0 text-muted-foreground hover:text-destructive"
+          title="Log out"
           onClick={handleLogout}
         >
-          <LogOut className="h-4 w-4 mr-2" />
-          Log out
+          <LogOut className="h-4 w-4" />
         </Button>
+      </div>
+
+      {/* Vendor branding — hover for contact card */}
+      <div
+        className="relative px-3 pb-3 text-center cursor-pointer"
+        onMouseEnter={handleContactEnter}
+        onMouseLeave={handleContactLeave}
+      >
+        <p className="text-[10px] text-muted-foreground leading-relaxed select-none">
+          Powered by<br />
+          <span className="font-semibold text-foreground/60 hover:text-foreground/80 transition-colors">
+            Dream Labs IT Solutions
+          </span>
+        </p>
+
+        {/* Contact popup — appears to the right of the sidebar */}
+        {showContact && (
+          <div
+              className="absolute bottom-0 left-full ml-3 w-60 rounded-xl border border-border bg-card shadow-xl z-50 overflow-hidden"
+              onMouseEnter={handleContactEnter}
+              onMouseLeave={handleContactLeave}
+            >
+            {/* Header */}
+            <div className="bg-primary px-4 py-3 flex items-center gap-3">
+              <img src={dreamLabsLogo} alt="Dream Labs" className="h-14 w-14 rounded-full object-cover shrink-0" />
+              <div className="text-left">
+                <p className="text-primary-foreground font-bold text-sm leading-tight">Dream Labs</p>
+                <p className="text-primary-foreground/70 text-xs">IT Solutions</p>
+              </div>
+            </div>
+
+            {/* Contact details */}
+            <div className="px-4 py-3 space-y-2.5">
+              <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Contact Us</p>
+
+              <a
+                href="https://wa.me/94706151051"
+                target="_blank"
+                rel="noreferrer"
+                className="flex items-center gap-2.5 rounded-lg px-2 py-1.5 hover:bg-green-50 dark:hover:bg-green-950/20 transition-colors group"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <div className="flex h-7 w-7 items-center justify-center rounded-md bg-green-500/10 shrink-0">
+                  <MessageCircle className="h-3.5 w-3.5 text-green-600" />
+                </div>
+                <div className="text-left min-w-0">
+                  <p className="text-[10px] text-muted-foreground">WhatsApp</p>
+                  <p className="text-xs font-medium group-hover:text-green-600 transition-colors">070 615 1051</p>
+                </div>
+              </a>
+
+              <a
+                href="mailto:dreamlabsinfo12@gmail.com"
+                className="flex items-center gap-2.5 rounded-lg px-2 py-1.5 hover:bg-primary/5 transition-colors group"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <div className="flex h-7 w-7 items-center justify-center rounded-md bg-primary/10 shrink-0">
+                  <Mail className="h-3.5 w-3.5 text-primary" />
+                </div>
+                <div className="text-left min-w-0">
+                  <p className="text-[10px] text-muted-foreground">Email</p>
+                  <p className="text-xs font-medium truncate group-hover:text-primary transition-colors">dreamlabsinfo12@gmail.com</p>
+                </div>
+              </a>
+            </div>
+          </div>
+        )}
       </div>
     </aside>
   )

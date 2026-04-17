@@ -92,6 +92,11 @@ function buildReceiptHtml(d: {
   <hr>
   ${d.receiptFooter ? `<p class="c sm">${d.receiptFooter.replace(/\n/g, '<br>')}</p>` : ''}
   <p class="c sm" style="margin-top:4px">Thank you for shopping with us!</p>
+  <hr>
+  <p class="c" style="font-size:9px;color:#999;margin-top:4px;line-height:1.6">
+    Software by <strong style="color:#777">Dream Labs IT Solutions</strong><br>
+    WhatsApp: 070 615 1051
+  </p>
   <br><br>
 </body></html>`
 }
@@ -155,7 +160,7 @@ export function registerReceiptIPC(): void {
         webPreferences: { nodeIntegration: false, contextIsolation: true },
       })
       await win.loadURL('data:text/html;charset=utf-8,' + encodeURIComponent(html))
-      win.webContents.print({ silent: false, printBackground: true }, (_ok, reason) => {
+      win.webContents.print({ silent: true, printBackground: true }, (_ok, reason) => {
         if (reason) console.error('[receipt:print]', reason)
         win.close()
       })

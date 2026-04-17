@@ -26,6 +26,7 @@ export interface Supermarket {
   receiptHeader?: string | null
   receiptFooter?: string | null
   receiptLanguage: string
+  logoPath?: string | null
   createdAt: number
   updatedAt: number
 }

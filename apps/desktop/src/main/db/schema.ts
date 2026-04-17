@@ -27,6 +27,7 @@ export const supermarkets = sqliteTable('supermarkets', {
   receiptHeader:   text('receipt_header'),
   receiptFooter:   text('receipt_footer'),
   receiptLanguage: text('receipt_language').default('en').notNull(),
+  logoPath:        text('logo_path'),
   ...syncCols,
 })
 

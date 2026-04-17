@@ -584,7 +584,15 @@ export default function POSPage() {
 
       {/* Sale Success Dialog */}
       <Dialog open={successDialog} onOpenChange={(o) => !o && setSuccessDialog(false)}>
-        <DialogContent className="max-w-xs text-center">
+        <DialogContent
+          className="max-w-xs text-center"
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' && lastSaleId && !printing) {
+              e.preventDefault()
+              printReceipt()
+            }
+          }}
+        >
           <DialogHeader>
             <DialogTitle className="flex flex-col items-center gap-3">
               <CheckCircle2 className="h-12 w-12 text-green-500" />
@@ -743,7 +751,15 @@ export default function POSPage() {
 
       {/* Payment Dialog */}
       <Dialog open={payDialog} onOpenChange={(o) => { if (!processing) setPayDialog(o) }}>
-        <DialogContent className="max-w-sm">
+        <DialogContent
+          className="max-w-sm"
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' && !processing && cashValid) {
+              e.preventDefault()
+              completeSale()
+            }
+          }}
+        >
           <DialogHeader>
             <DialogTitle>Payment</DialogTitle>
           </DialogHeader>
@@ -830,6 +846,7 @@ export default function POSPage() {
                   step="0.01"
                   value={cashInput}
                   onChange={(e) => setCashInput(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === 'Enter' && cashValid && !processing) { e.preventDefault(); completeSale() } }}
                   placeholder={total.toFixed(2)}
                   className="font-mono text-xl text-center h-12"
                   autoFocus

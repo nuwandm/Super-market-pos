@@ -1,4 +1,6 @@
-import { ipcMain } from 'electron'
+import { ipcMain, dialog } from 'electron'
+import { readFileSync } from 'fs'
+import { extname } from 'path'
 import { eq, and, isNull, asc } from 'drizzle-orm'
 import { createHash, randomBytes } from 'crypto'
 import { getDb } from '../db'
@@ -28,7 +30,7 @@ export function registerSettingsIPC(): void {
     try {
       const db = getDb()
       // Whitelist only known schema columns to avoid injecting arbitrary keys
-      const allowed = ['name','phone','email','address','currency','timezone','taxRate','vatNumber','receiptHeader','receiptFooter','receiptLanguage'] as const
+      const allowed = ['name','phone','email','address','currency','timezone','taxRate','vatNumber','receiptHeader','receiptFooter','receiptLanguage','logoPath'] as const
       const safe: Record<string, unknown> = { updatedAt: Date.now() }
       for (const key of allowed) {
         if (key in data) safe[key] = data[key]
@@ -185,6 +187,56 @@ export function registerSettingsIPC(): void {
     } catch (err) {
       console.error('[settings:resetStaffPin]', err)
       return { success: false, error: 'Failed to reset PIN' }
+    }
+  })
+
+  // settings:uploadLogo
+  ipcMain.handle('settings:uploadLogo', async (_e, supermarketId: string) => {
+    try {
+      const result = await dialog.showOpenDialog({
+        title: 'Choose Company Logo',
+        filters: [{ name: 'Images', extensions: ['png', 'jpg', 'jpeg', 'gif', 'webp', 'svg'] }],
+        properties: ['openFile'],
+      })
+      if (result.canceled || !result.filePaths.length) return { success: false, error: 'Cancelled' }
+
+      const filePath = result.filePaths[0]
+      const ext = extname(filePath).toLowerCase().replace('.', '')
+      const mimeMap: Record<string, string> = {
+        png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg',
+        gif: 'image/gif', webp: 'image/webp', svg: 'image/svg+xml',
+      }
+      const mime = mimeMap[ext] ?? 'image/png'
+
+      const buffer = readFileSync(filePath)
+      if (buffer.length > 2 * 1024 * 1024) {
+        return { success: false, error: 'Logo file is too large (max 2 MB)' }
+      }
+      const logoPath = `data:${mime};base64,${buffer.toString('base64')}`
+
+      const db = getDb()
+      await db.update(schema.supermarkets)
+        .set({ logoPath, updatedAt: Date.now() } as never)
+        .where(eq(schema.supermarkets.id, supermarketId))
+
+      return { success: true, data: { logoPath } }
+    } catch (err) {
+      console.error('[settings:uploadLogo]', err)
+      return { success: false, error: 'Failed to upload logo' }
+    }
+  })
+
+  // settings:removeLogo
+  ipcMain.handle('settings:removeLogo', async (_e, supermarketId: string) => {
+    try {
+      const db = getDb()
+      await db.update(schema.supermarkets)
+        .set({ logoPath: null, updatedAt: Date.now() } as never)
+        .where(eq(schema.supermarkets.id, supermarketId))
+      return { success: true }
+    } catch (err) {
+      console.error('[settings:removeLogo]', err)
+      return { success: false, error: 'Failed to remove logo' }
     }
   })
 

@@ -396,6 +396,7 @@ export async function initDb(): Promise<void> {
   const columnMigrations = [
     `ALTER TABLE products ADD COLUMN "expiry_date" integer`,
     `ALTER TABLE customers ADD COLUMN "credit_limit" real DEFAULT 0 NOT NULL`,
+    `ALTER TABLE supermarkets ADD COLUMN "logo_path" text`,
   ]
   for (const stmt of columnMigrations) {
     try { await client.execute(stmt) } catch { /* column already exists */ }

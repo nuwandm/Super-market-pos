@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { toast } from 'sonner'
-import { Plus, Pencil, KeyRound, RotateCcw, HardDrive, Upload } from 'lucide-react'
+import { Plus, Pencil, KeyRound, RotateCcw, HardDrive, Upload, ImagePlus, Trash2 } from 'lucide-react'
 import { api } from '@/lib/api'
 import { useAuthStore } from '@/stores/auth.store'
 import { useShortcutsStore } from '@/stores/shortcuts.store'
@@ -32,7 +32,8 @@ function SupermarketTab() {
     receiptFooter:   supermarket?.receiptFooter   ?? '',
     receiptLanguage: supermarket?.receiptLanguage ?? 'en',
   })
-  const [saving, setSaving] = useState(false)
+  const [saving,        setSaving]        = useState(false)
+  const [logoUploading, setLogoUploading] = useState(false)
 
   useEffect(() => {
     if (!supermarket) return
@@ -54,28 +55,82 @@ function SupermarketTab() {
     return (e: React.ChangeEvent<HTMLInputElement>) => setForm((s) => ({ ...s, [key]: e.target.value }))
   }
 
+  async function refreshContext() {
+    if (session?.branchId) {
+      const ctx = await api.auth.getContext(session.branchId)
+      if (ctx.success && ctx.data) setContext(ctx.data.supermarket, ctx.data.branch)
+    }
+  }
+
   async function save() {
     if (!supermarket) return
     setSaving(true)
     try {
-      const data = {
-        ...form,
-        taxRate: parseFloat(form.taxRate) || 0,
-      }
+      const data = { ...form, taxRate: parseFloat(form.taxRate) || 0 }
       const res = await api.settings.updateSupermarket(supermarket.id, data)
       if (!res.success) { toast.error(res.error ?? 'Update failed'); return }
-      // Refresh context
-      if (session?.branchId) {
-        const ctx = await api.auth.getContext(session.branchId)
-        if (ctx.success && ctx.data) setContext(ctx.data.supermarket, ctx.data.branch)
-      }
+      await refreshContext()
       toast.success('Settings saved')
     } catch { toast.error('Save failed') }
     finally { setSaving(false) }
   }
 
+  async function uploadLogo() {
+    if (!supermarket) return
+    setLogoUploading(true)
+    try {
+      const res = await api.settings.uploadLogo(supermarket.id)
+      if (!res.success) {
+        if (res.error !== 'Cancelled') toast.error(res.error ?? 'Upload failed')
+        return
+      }
+      await refreshContext()
+      toast.success('Logo updated')
+    } catch { toast.error('Upload failed') }
+    finally { setLogoUploading(false) }
+  }
+
+  async function removeLogo() {
+    if (!supermarket) return
+    setLogoUploading(true)
+    try {
+      const res = await api.settings.removeLogo(supermarket.id)
+      if (!res.success) { toast.error(res.error ?? 'Remove failed'); return }
+      await refreshContext()
+      toast.success('Logo removed')
+    } catch { toast.error('Remove failed') }
+    finally { setLogoUploading(false) }
+  }
+
   return (
     <div className="space-y-6 max-w-2xl">
+      {/* Logo */}
+      <div className="flex items-center gap-5 p-4 rounded-xl border border-border bg-card">
+        <div className="flex h-20 w-20 items-center justify-center rounded-lg bg-muted border border-border overflow-hidden shrink-0">
+          {supermarket?.logoPath ? (
+            <img src={supermarket.logoPath} alt="Logo" className="h-full w-full object-contain" />
+          ) : (
+            <ImagePlus className="h-8 w-8 text-muted-foreground" />
+          )}
+        </div>
+        <div className="space-y-1.5">
+          <p className="text-sm font-semibold">Company Logo</p>
+          <p className="text-xs text-muted-foreground">PNG, JPG, SVG or WebP — max 2 MB. Shown in the sidebar and on receipts.</p>
+          <div className="flex gap-2 pt-1">
+            <Button size="sm" variant="outline" onClick={uploadLogo} disabled={logoUploading}>
+              <ImagePlus className="h-3.5 w-3.5 mr-1.5" />
+              {logoUploading ? 'Uploading…' : supermarket?.logoPath ? 'Change Logo' : 'Upload Logo'}
+            </Button>
+            {supermarket?.logoPath && (
+              <Button size="sm" variant="ghost" className="text-destructive hover:text-destructive" onClick={removeLogo} disabled={logoUploading}>
+                <Trash2 className="h-3.5 w-3.5 mr-1.5" />
+                Remove
+              </Button>
+            )}
+          </div>
+        </div>
+      </div>
+
       <div className="grid grid-cols-2 gap-4">
         <div className="col-span-2 space-y-1.5">
           <Label>Supermarket Name</Label>
@@ -679,6 +734,29 @@ function ShortcutsTab() {
           </div>
         )
       })}
+
+      {/* Fixed / context shortcuts — read-only reference */}
+      <div>
+        <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">
+          Context Keys <span className="normal-case font-normal">(fixed, not configurable)</span>
+        </h3>
+        <div className="rounded-xl border border-border bg-card divide-y divide-border">
+          {[
+            { label: 'Login — move to PIN field',     key: 'Tab / Enter' },
+            { label: 'Login — submit login',           key: 'Enter (PIN focused)' },
+            { label: 'Payment — confirm sale',         key: 'Enter' },
+            { label: 'Sale Complete — print receipt',  key: 'Enter' },
+            { label: 'Any dialog — cancel / close',    key: 'Esc' },
+          ].map(({ label, key }) => (
+            <div key={label} className="flex items-center justify-between px-4 py-3 gap-4">
+              <p className="text-sm text-muted-foreground flex-1">{label}</p>
+              <kbd className="min-w-[3rem] text-center px-2 py-1 text-xs font-mono rounded border border-border bg-muted/50 text-muted-foreground">
+                {key}
+              </kbd>
+            </div>
+          ))}
+        </div>
+      </div>
     </div>
   )
 }
@@ -712,8 +790,8 @@ function BackupTab() {
   return (
     <div className="space-y-6 max-w-2xl">
       <p className="text-sm text-muted-foreground">
-        Create a backup of your database file, or restore from a previous backup.
-        Restoring will replace the current database with the selected backup file.
+        Create a full snapshot backup of your data — includes all products, sales, customers,
+        company logo, and images. Restore from a backup to return the app to that exact state.
       </p>
 
       <div className="grid grid-cols-2 gap-4">
@@ -723,8 +801,8 @@ function BackupTab() {
               <HardDrive className="h-5 w-5 text-primary" />
             </div>
             <div>
-              <p className="text-sm font-semibold">Create Backup</p>
-              <p className="text-xs text-muted-foreground">Save a copy of your database</p>
+              <p className="text-sm font-semibold">Create Full Backup</p>
+              <p className="text-xs text-muted-foreground">Saves DB + logo + all images as a .zip</p>
             </div>
           </div>
           <Button className="w-full" onClick={createBackup} disabled={backingUp || restoring}>
@@ -740,7 +818,7 @@ function BackupTab() {
             </div>
             <div>
               <p className="text-sm font-semibold">Restore Backup</p>
-              <p className="text-xs text-muted-foreground">Replace database from backup file</p>
+              <p className="text-xs text-muted-foreground">Restore from a .zip or legacy .db file</p>
             </div>
           </div>
           <Button variant="outline" className="w-full border-amber-300 text-amber-700 hover:bg-amber-50" onClick={restoreBackup} disabled={backingUp || restoring}>
@@ -752,7 +830,7 @@ function BackupTab() {
 
       <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3">
         <p className="text-xs text-amber-800">
-          <strong>Warning:</strong> Restoring a backup will overwrite all current data. Make sure to create a backup of the current database before restoring.
+          <strong>Warning:</strong> Restoring a backup will overwrite all current data. Make sure to create a backup first. Legacy <code>.db</code> backups from older versions are also supported.
         </p>
       </div>
     </div>
