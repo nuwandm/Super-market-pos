@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { toast } from 'sonner'
-import { Plus, Pencil, Trash2, Search, RefreshCw, Printer, CalendarIcon, Tags, Upload, Download } from 'lucide-react'
+import { Plus, Pencil, Trash2, Search, RefreshCw, Printer, CalendarIcon, Tags, Upload, Download, ScanBarcode, AlertCircle } from 'lucide-react'
 import JsBarcode from 'jsbarcode'
 import { format } from 'date-fns'
 import { api } from '@/lib/api'
@@ -183,6 +183,25 @@ export default function ProductsPage() {
   const [batchTarget, setBatchTarget] = useState<Product | null>(null)
   const [batchQty,    setBatchQty]    = useState('1')
 
+  const [barcodeWarn, setBarcodeWarn] = useState<string | null>(null)
+
+  async function checkBarcode(val: string) {
+    if (!val.trim()) { setBarcodeWarn(null); return }
+    try {
+      const res = await api.products.getByBarcode(val.trim(), branchId)
+      if (res.success && res.data) {
+        const existing = res.data as Record<string, unknown>
+        if (dialog === 'edit' && editing?.id === existing.id) {
+          setBarcodeWarn(null)
+        } else {
+          setBarcodeWarn(`Already used by: ${existing.name}`)
+        }
+      } else {
+        setBarcodeWarn(null)
+      }
+    } catch { setBarcodeWarn(null) }
+  }
+
   // CSV Import
   const importInputRef = useRef<HTMLInputElement>(null)
   const [importDialog, setImportDialog] = useState(false)
@@ -255,11 +274,13 @@ export default function ProductsPage() {
   function openCreate() {
     setEditing(null)
     setForm(defaultForm)
+    setBarcodeWarn(null)
     setDialog('create')
   }
 
   function openEdit(p: Product) {
     setEditing(p)
+    setBarcodeWarn(null)
     setForm({
       name:          p.name,
       nameSinhala:   p.nameSinhala  ?? '',
@@ -498,12 +519,28 @@ export default function ProductsPage() {
                 />
               </div>
               <div className="col-span-2 space-y-1.5">
-                <Label>Barcode</Label>
+                <div className="flex items-center justify-between">
+                  <Label className="flex items-center gap-1.5">
+                    Barcode
+                    <span className="flex items-center gap-1 text-[10px] font-normal text-muted-foreground">
+                      <ScanBarcode className="h-3 w-3" />
+                      Click field then scan
+                    </span>
+                  </Label>
+                </div>
                 <div className="flex gap-2">
                   <Input
                     value={form.barcode}
-                    onChange={(e) => field('barcode')(e.target.value)}
-                    className="font-mono flex-1"
+                    onChange={(e) => { field('barcode')(e.target.value); setBarcodeWarn(null) }}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault()
+                        e.stopPropagation()
+                        if (form.barcode.trim()) checkBarcode(form.barcode.trim())
+                      }
+                    }}
+                    onBlur={() => { if (form.barcode.trim()) checkBarcode(form.barcode.trim()) }}
+                    className={`font-mono flex-1 ${barcodeWarn ? 'border-amber-400 focus-visible:ring-amber-400' : ''}`}
                     placeholder="Scan or enter barcode"
                   />
                   <Button
@@ -516,6 +553,12 @@ export default function ProductsPage() {
                     <RefreshCw className="h-4 w-4" />
                   </Button>
                 </div>
+                {barcodeWarn && (
+                  <p className="flex items-center gap-1 text-xs text-amber-600">
+                    <AlertCircle className="h-3 w-3 shrink-0" />
+                    {barcodeWarn}
+                  </p>
+                )}
                 {form.barcode.trim() && (
                   <BarcodePreview
                     barcode={form.barcode.trim()}
@@ -547,15 +590,15 @@ export default function ProductsPage() {
               {/* Prices */}
               <div className="space-y-1.5">
                 <Label>Cost Price ({currency})</Label>
-                <Input type="number" min="0" step="0.01" value={form.costPrice} onChange={(e) => field('costPrice')(e.target.value)} className="font-mono" />
+                <Input type="number" min="0" step="0.01" value={form.costPrice} onChange={(e) => field('costPrice')(e.target.value)} onFocus={(e) => e.target.select()} className="font-mono" />
               </div>
               <div className="space-y-1.5">
                 <Label>Selling Price ({currency}) *</Label>
-                <Input type="number" min="0" step="0.01" value={form.sellingPrice} onChange={(e) => field('sellingPrice')(e.target.value)} className="font-mono" />
+                <Input type="number" min="0" step="0.01" value={form.sellingPrice} onChange={(e) => field('sellingPrice')(e.target.value)} onFocus={(e) => e.target.select()} className="font-mono" />
               </div>
               <div className="space-y-1.5">
                 <Label>Wholesale Price ({currency})</Label>
-                <Input type="number" min="0" step="0.01" value={form.wholesalePrice} onChange={(e) => field('wholesalePrice')(e.target.value)} className="font-mono" placeholder="optional" />
+                <Input type="number" min="0" step="0.01" value={form.wholesalePrice} onChange={(e) => field('wholesalePrice')(e.target.value)} onFocus={(e) => e.target.select()} className="font-mono" placeholder="optional" />
               </div>
               <div className="space-y-1.5">
                 <Label>Tax Type</Label>
@@ -570,11 +613,11 @@ export default function ProductsPage() {
               {/* Reorder */}
               <div className="space-y-1.5">
                 <Label>Reorder Level</Label>
-                <Input type="number" min="0" step="0.01" value={form.reorderLevel} onChange={(e) => field('reorderLevel')(e.target.value)} className="font-mono" />
+                <Input type="number" min="0" step="0.01" value={form.reorderLevel} onChange={(e) => field('reorderLevel')(e.target.value)} onFocus={(e) => e.target.select()} className="font-mono" />
               </div>
               <div className="space-y-1.5">
                 <Label>Reorder Qty</Label>
-                <Input type="number" min="0" step="0.01" value={form.reorderQty} onChange={(e) => field('reorderQty')(e.target.value)} className="font-mono" />
+                <Input type="number" min="0" step="0.01" value={form.reorderQty} onChange={(e) => field('reorderQty')(e.target.value)} onFocus={(e) => e.target.select()} className="font-mono" />
               </div>
               {/* Toggles */}
               <div className="flex items-center justify-between">
