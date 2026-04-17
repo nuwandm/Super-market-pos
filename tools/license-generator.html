@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>POS License Generator</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0 }
+    body {
+      font-family: system-ui, -apple-system, sans-serif;
+      background: #0f172a;
+      color: #e2e8f0;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+    }
+    .card {
+      background: #1e293b;
+      border: 1px solid #334155;
+      border-radius: 16px;
+      padding: 40px;
+      width: 100%;
+      max-width: 480px;
+      box-shadow: 0 20px 60px rgba(0,0,0,.4);
+    }
+    .logo {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 28px;
+    }
+    .logo-icon {
+      width: 44px; height: 44px;
+      background: #3b82f6;
+      border-radius: 10px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 22px;
+    }
+    h1 { font-size: 18px; font-weight: 700; color: #f1f5f9 }
+    p.sub { font-size: 13px; color: #94a3b8; margin-top: 2px }
+
+    label { display: block; font-size: 13px; font-weight: 500; color: #94a3b8; margin-bottom: 6px; margin-top: 20px }
+    input {
+      width: 100%;
+      background: #0f172a;
+      border: 1px solid #334155;
+      border-radius: 8px;
+      color: #f1f5f9;
+      font-size: 14px;
+      font-family: 'Courier New', monospace;
+      padding: 10px 12px;
+      letter-spacing: 1px;
+      outline: none;
+      transition: border-color .15s;
+    }
+    input:focus { border-color: #3b82f6 }
+    input.result-input {
+      font-size: 20px;
+      font-weight: 700;
+      text-align: center;
+      letter-spacing: 3px;
+      color: #4ade80;
+      border-color: #166534;
+      background: #052e16;
+      cursor: pointer;
+    }
+
+    button {
+      margin-top: 20px;
+      width: 100%;
+      background: #3b82f6;
+      color: #fff;
+      border: none;
+      border-radius: 8px;
+      padding: 12px;
+      font-size: 15px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background .15s;
+    }
+    button:hover { background: #2563eb }
+    button:disabled { background: #475569; cursor: not-allowed }
+
+    .result-section { margin-top: 28px; display: none }
+    .result-section.visible { display: block }
+
+    .divider { height: 1px; background: #334155; margin: 24px 0 }
+
+    .hint {
+      background: #1e3a5f;
+      border: 1px solid #1d4ed8;
+      border-radius: 8px;
+      padding: 12px 14px;
+      font-size: 12px;
+      color: #93c5fd;
+      line-height: 1.6;
+      margin-top: 20px;
+    }
+
+    .copy-btn {
+      margin-top: 10px;
+      background: #166534;
+      font-size: 13px;
+      padding: 9px;
+    }
+    .copy-btn:hover { background: #15803d }
+
+    .warning { color: #fbbf24; font-size: 12px; margin-top: 6px; display: none }
+    .warning.show { display: block }
+
+    footer {
+      text-align: center;
+      margin-top: 28px;
+      font-size: 11px;
+      color: #475569;
+    }
+  </style>
+</head>
+<body>
+<div class="card">
+
+  <div class="logo">
+    <div class="logo-icon">🏪</div>
+    <div>
+      <h1>License Generator</h1>
+      <p class="sub">Supermarket POS — Developer Tool</p>
+    </div>
+  </div>
+
+  <label for="machineId">Customer Machine ID</label>
+  <input
+    id="machineId"
+    type="text"
+    placeholder="e.g. ABCD1234EFGH5678ABCD1234EFGH5678"
+    maxlength="32"
+    autocomplete="off"
+    spellcheck="false"
+  />
+  <p class="warning" id="warn">⚠ Machine ID should be 32 hex characters</p>
+
+  <button id="generateBtn" onclick="generate()">Generate License Key</button>
+
+  <div class="result-section" id="resultSection">
+    <div class="divider"></div>
+    <label>License Key (send this to the customer)</label>
+    <input
+      id="licenseKey"
+      type="text"
+      class="result-input"
+      readonly
+      onclick="copyKey()"
+      title="Click to copy"
+    />
+    <button class="copy-btn" onclick="copyKey()" id="copyBtn">📋 Click to Copy</button>
+  </div>
+
+  <div class="hint">
+    <strong>How it works:</strong><br/>
+    1. Customer's trial expires → app shows their Machine ID<br/>
+    2. Customer sends you the Machine ID (WhatsApp / phone / email)<br/>
+    3. Paste it here → click Generate → send the key back<br/>
+    4. Customer enters the key in the app → permanently activated
+  </div>
+
+  <footer>🔒 Keep this page private — never share with customers</footer>
+</div>
+
+<script>
+  // ── Must match LICENSE_SECRET in license-manager.ts exactly ──────────────────
+  const LICENSE_SECRET = 'POS_LICENSE_NUWANED_2024'
+
+  async function hmacSha256Hex(secret, message) {
+    const enc = new TextEncoder()
+    const key = await crypto.subtle.importKey(
+      'raw', enc.encode(secret),
+      { name: 'HMAC', hash: 'SHA-256' },
+      false, ['sign']
+    )
+    const sig = await crypto.subtle.sign('HMAC', key, enc.encode(message))
+    return Array.from(new Uint8Array(sig))
+      .map(b => b.toString(16).padStart(2, '0'))
+      .join('')
+      .toUpperCase()
+  }
+
+  async function generate() {
+    const raw = document.getElementById('machineId').value.trim().toUpperCase()
+    const warn = document.getElementById('warn')
+
+    if (!raw) { alert('Please enter the Machine ID'); return }
+
+    if (!/^[A-F0-9]{32}$/.test(raw)) {
+      warn.classList.add('show')
+    } else {
+      warn.classList.remove('show')
+    }
+
+    const hex = await hmacSha256Hex(LICENSE_SECRET, raw)
+    const k = hex.slice(0, 16)
+    const formatted = `${k.slice(0,4)}-${k.slice(4,8)}-${k.slice(8,12)}-${k.slice(12,16)}`
+
+    document.getElementById('licenseKey').value = formatted
+    document.getElementById('resultSection').classList.add('visible')
+  }
+
+  async function copyKey() {
+    const key = document.getElementById('licenseKey').value
+    if (!key) return
+    try {
+      await navigator.clipboard.writeText(key)
+      const btn = document.getElementById('copyBtn')
+      btn.textContent = '✅ Copied!'
+      setTimeout(() => { btn.textContent = '📋 Click to Copy' }, 2000)
+    } catch {
+      document.getElementById('licenseKey').select()
+      document.execCommand('copy')
+    }
+  }
+
+  // Allow Enter key to generate
+  document.getElementById('machineId').addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') generate()
+  })
+
+  // Auto-uppercase as you type
+  document.getElementById('machineId').addEventListener('input', (e) => {
+    const pos = e.target.selectionStart
+    e.target.value = e.target.value.toUpperCase().replace(/[^A-F0-9]/g, '')
+    e.target.setSelectionRange(pos, pos)
+  })
+</script>
+</body>
+</html>
