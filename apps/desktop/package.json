@@ -1,6 +1,8 @@
 {
   "name": "supermarket-pos-desktop",
   "version": "1.0.0",
+  "description": "Supermarket Point of Sale Desktop Application",
+  "author": "Nuwan",
   "private": true,
   "main": "./out/main/index.js",
   "scripts": {
@@ -55,7 +57,7 @@
     "@vitejs/plugin-react": "^4.3.0",
     "autoprefixer": "^10.4.19",
     "drizzle-kit": "^0.30.0",
-    "electron": "^31.0.1",
+    "electron": "31.7.7",
     "electron-builder": "^24.13.3",
     "electron-vite": "^2.3.0",
     "postcss": "^8.4.38",
@@ -67,6 +69,7 @@
   "build": {
     "appId": "com.supermarketpos.desktop",
     "productName": "Supermarket POS",
+    "electronVersion": "31.7.7",
     "directories": {
       "output": "dist"
     },
