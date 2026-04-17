@@ -72,11 +72,16 @@ export async function getLicenseStatus(
     return { status: 'activated', daysRemaining: 0, hardwareId }
   }
 
-  const trialStartRaw = await getConfig(db, 'trial_start')
-  const trialStart    = trialStartRaw ? parseInt(trialStartRaw, 10) : Date.now()
+  let trialStartRaw = await getConfig(db, 'trial_start')
+  if (!trialStartRaw) {
+    // trial_start missing — save it now so it persists across restarts
+    trialStartRaw = Date.now().toString()
+    await setConfig(db, 'trial_start', trialStartRaw)
+  }
+  const trialStart    = parseInt(trialStartRaw, 10)
   const elapsed       = Date.now() - trialStart
   const elapsedDays   = elapsed / (1000 * 60 * 60 * 24)
-  const daysRemaining = Math.max(0, Math.ceil(TRIAL_DAYS - elapsedDays))
+  const daysRemaining = Math.max(0, Math.floor(TRIAL_DAYS - elapsedDays))
 
   if (daysRemaining <= 0) {
     return { status: 'trial_expired', daysRemaining: 0, hardwareId }
