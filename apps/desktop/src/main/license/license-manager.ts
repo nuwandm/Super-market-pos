@@ -17,6 +17,7 @@ export interface LicenseState {
   status:         LicenseStatus
   daysRemaining:  number
   hardwareId:     string
+  dbPath?:        string
 }
 
 // ─── Key derivation (same algorithm used in generate-license.mjs) ─────────────

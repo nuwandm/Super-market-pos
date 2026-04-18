@@ -1,5 +1,6 @@
 {
   "name": "supermarket-pos-desktop",
+  "productName": "Supermarket POS",
   "version": "1.0.0",
   "description": "Supermarket Point of Sale Desktop Application",
   "author": "Nuwan",
@@ -81,7 +82,8 @@
     },
     "nsis": {
       "oneClick": false,
-      "allowToChangeInstallationDirectory": true
+      "allowToChangeInstallationDirectory": true,
+      "deleteAppDataOnUninstall": true
     }
   }
 }

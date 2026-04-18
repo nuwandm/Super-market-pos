@@ -36,21 +36,28 @@ export default function App() {
       try {
         // 1. Check license / setup status first
         const lic = await api.license.getStatus()
-        if (lic.success && lic.data) {
-          setLicense(lic.data)
-          if (lic.data.status === 'not_setup') {
-            navigate('/setup', { replace: true })
-            setLoading(false)
-            return
-          }
-          if (lic.data.status === 'trial_expired') {
-            navigate('/activate', { replace: true })
-            setLoading(false)
-            return
-          }
+
+        // If status check fails for any reason, default to setup (safe fallback)
+        if (!lic.success || !lic.data) {
+          navigate('/setup', { replace: true })
+          setLoading(false)
+          return
         }
 
-        // 2. Restore session
+        setLicense(lic.data)
+
+        if (lic.data.status === 'not_setup') {
+          navigate('/setup', { replace: true })
+          setLoading(false)
+          return
+        }
+        if (lic.data.status === 'trial_expired') {
+          navigate('/activate', { replace: true })
+          setLoading(false)
+          return
+        }
+
+        // 2. Restore session (only when trial_valid or activated)
         const res = await api.auth.getSession()
         if (res.success && res.data) {
           login(res.data)
@@ -60,7 +67,8 @@ export default function App() {
           }
         }
       } catch {
-        // continue — user will land on login
+        // On unexpected error, go to setup rather than showing a blank login
+        navigate('/setup', { replace: true })
       }
       setLoading(false)
     }

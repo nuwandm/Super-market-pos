@@ -1,5 +1,7 @@
-import { ipcMain, shell } from 'electron'
+import { ipcMain, shell, app } from 'electron'
 import { createHash, randomBytes } from 'crypto'
+import { join } from 'path'
+import { eq } from 'drizzle-orm'
 import { getDb } from '../db'
 import * as schema from '../db/schema'
 import {
@@ -32,6 +34,7 @@ export function registerLicenseIPC(): void {
     try {
       const db     = getDb()
       const status = await getLicenseStatus(db)
+      status.dbPath = join(app.getPath('userData'), 'supermarket-pos.db')
       return { success: true, data: status }
     } catch (err) {
       console.error('[license:getStatus]', err)
@@ -147,5 +150,24 @@ export function registerLicenseIPC(): void {
       console.error('[setup:complete]', err)
       return { success: false, error: 'Setup failed — please try again' }
     }
+  })
+
+  // ── app:resetSetup ────────────────────────────────────────────────────────────
+  // Clears all app_config keys so the app returns to first-run setup on next launch.
+  ipcMain.handle('app:resetSetup', async () => {
+    try {
+      const db = getDb()
+      await db.delete(schema.appConfig)
+      console.log('[app:resetSetup] Setup reset — app_config cleared')
+      return { success: true }
+    } catch (err) {
+      console.error('[app:resetSetup]', err)
+      return { success: false, error: 'Reset failed' }
+    }
+  })
+
+  // ── app:getDbPath ─────────────────────────────────────────────────────────────
+  ipcMain.handle('app:getDbPath', () => {
+    return join(app.getPath('userData'), 'supermarket-pos.db')
   })
 }

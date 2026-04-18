@@ -11,6 +11,10 @@ const api = {
   shell: {
     openExternal: (url: string) => invoke('shell:openExternal', url),
   },
+  app: {
+    resetSetup: () => invoke('app:resetSetup'),
+    getDbPath:  () => invoke('app:getDbPath'),
+  },
   setup: {
     complete: (data: Record<string, unknown>) => invoke('setup:complete', data),
   },

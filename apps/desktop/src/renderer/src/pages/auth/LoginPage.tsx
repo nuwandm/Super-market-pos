@@ -29,6 +29,15 @@ export default function LoginPage() {
   const [forgotLoading, setForgotLoading] = useState(false)
   const [copied,        setCopied]        = useState(false)
 
+  // Guard: if DB was reset, redirect to setup
+  useEffect(() => {
+    api.license.getStatus().then((res) => {
+      if (res.success && res.data?.status === 'not_setup') {
+        navigate('/setup', { replace: true })
+      }
+    }).catch(() => {})
+  }, [])
+
   useEffect(() => {
     staffCodeRef.current?.focus()
   }, [])
