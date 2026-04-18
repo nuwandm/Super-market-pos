@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>PIN Reset Key Generator</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0 }
+    body {
+      font-family: system-ui, -apple-system, sans-serif;
+      background: #0f172a;
+      color: #e2e8f0;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+    }
+    .card {
+      background: #1e293b;
+      border: 1px solid #334155;
+      border-radius: 16px;
+      padding: 40px;
+      width: 100%;
+      max-width: 480px;
+      box-shadow: 0 20px 60px rgba(0,0,0,.4);
+    }
+    .logo {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 28px;
+    }
+    .logo-icon {
+      width: 44px; height: 44px;
+      background: #8b5cf6;
+      border-radius: 10px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 22px;
+    }
+    h1 { font-size: 18px; font-weight: 700; color: #f1f5f9 }
+    p.sub { font-size: 13px; color: #94a3b8; margin-top: 2px }
+
+    label { display: block; font-size: 13px; font-weight: 500; color: #94a3b8; margin-bottom: 6px; margin-top: 20px }
+    input {
+      width: 100%;
+      background: #0f172a;
+      border: 1px solid #334155;
+      border-radius: 8px;
+      color: #f1f5f9;
+      font-size: 16px;
+      font-family: 'Courier New', monospace;
+      padding: 10px 12px;
+      letter-spacing: 2px;
+      outline: none;
+      text-align: center;
+      text-transform: uppercase;
+      transition: border-color .15s;
+    }
+    input:focus { border-color: #8b5cf6 }
+    input.result-input {
+      font-size: 22px;
+      font-weight: 700;
+      letter-spacing: 4px;
+      color: #4ade80;
+      border-color: #166534;
+      background: #052e16;
+      cursor: pointer;
+    }
+
+    button {
+      margin-top: 20px;
+      width: 100%;
+      background: #8b5cf6;
+      color: #fff;
+      border: none;
+      border-radius: 8px;
+      padding: 12px;
+      font-size: 15px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background .15s;
+    }
+    button:hover { background: #7c3aed }
+    button:disabled { background: #475569; cursor: not-allowed }
+
+    .result-section { margin-top: 28px; display: none }
+    .result-section.visible { display: block }
+
+    .divider { height: 1px; background: #334155; margin: 24px 0 }
+
+    .hint {
+      background: #2e1b5e;
+      border: 1px solid #6d28d9;
+      border-radius: 8px;
+      padding: 12px 14px;
+      font-size: 12px;
+      color: #c4b5fd;
+      line-height: 1.6;
+      margin-top: 20px;
+    }
+
+    .copy-btn {
+      margin-top: 10px;
+      background: #166534;
+      font-size: 13px;
+      padding: 9px;
+    }
+    .copy-btn:hover { background: #15803d }
+
+    .warning { color: #fbbf24; font-size: 12px; margin-top: 6px; display: none }
+    .warning.show { display: block }
+
+    footer {
+      text-align: center;
+      margin-top: 28px;
+      font-size: 11px;
+      color: #475569;
+    }
+  </style>
+</head>
+<body>
+<div class="card">
+
+  <div class="logo">
+    <div class="logo-icon">🔑</div>
+    <div>
+      <h1>PIN Reset Key Generator</h1>
+      <p class="sub">Supermarket POS — Developer Tool</p>
+    </div>
+  </div>
+
+  <label for="requestCode">Customer Request Code</label>
+  <input
+    id="requestCode"
+    type="text"
+    placeholder="XXXX-XXXX-XXXX"
+    maxlength="14"
+    autocomplete="off"
+    spellcheck="false"
+  />
+  <p class="warning" id="warn">⚠ Request code should be in XXXX-XXXX-XXXX format</p>
+
+  <button id="generateBtn" onclick="generate()">Generate Reset Key</button>
+
+  <div class="result-section" id="resultSection">
+    <div class="divider"></div>
+    <label>Reset Key (send this to the customer)</label>
+    <input
+      id="resetKey"
+      type="text"
+      class="result-input"
+      readonly
+      onclick="copyKey()"
+      title="Click to copy"
+    />
+    <button class="copy-btn" onclick="copyKey()" id="copyBtn">📋 Click to Copy</button>
+  </div>
+
+  <div class="hint">
+    <strong>How it works:</strong><br/>
+    1. Super admin forgets their PIN → opens the app → clicks "Forgot PIN?"<br/>
+    2. App shows a Request Code (XXXX-XXXX-XXXX format)<br/>
+    3. Customer sends you the Request Code (WhatsApp / phone)<br/>
+    4. Paste it here → click Generate → send the Reset Key back<br/>
+    5. Customer enters the Reset Key + sets a new PIN → done
+  </div>
+
+  <footer>🔒 Keep this page private — never share with customers</footer>
+</div>
+
+<script>
+  // ── Must match DEV_SECRET in auth.ipc.ts exactly ──────────────────────────
+  const DEV_SECRET = 'DL@SuperPOS#ResetKey2024!'
+
+  async function sha256Hex(message) {
+    const enc = new TextEncoder()
+    const buf = await crypto.subtle.digest('SHA-256', enc.encode(message))
+    return Array.from(new Uint8Array(buf))
+      .map(b => b.toString(16).padStart(2, '0'))
+      .join('')
+      .toUpperCase()
+  }
+
+  async function generate() {
+    const raw = document.getElementById('requestCode').value.trim().toUpperCase()
+    const warn = document.getElementById('warn')
+
+    if (!raw) { alert('Please enter the Request Code'); return }
+
+    const stripped = raw.replace(/-/g, '')
+    if (stripped.length !== 12) {
+      warn.classList.add('show')
+      document.getElementById('resultSection').classList.remove('visible')
+      return
+    }
+    warn.classList.remove('show')
+
+    const hex = await sha256Hex(stripped + DEV_SECRET + 'PINRESET')
+    const k = hex.substring(0, 10)
+    const formatted = `${k.slice(0, 5)}-${k.slice(5, 10)}`
+
+    document.getElementById('resetKey').value = formatted
+    document.getElementById('resultSection').classList.add('visible')
+  }
+
+  async function copyKey() {
+    const key = document.getElementById('resetKey').value
+    if (!key) return
+    try {
+      await navigator.clipboard.writeText(key)
+      const btn = document.getElementById('copyBtn')
+      btn.textContent = '✅ Copied!'
+      setTimeout(() => { btn.textContent = '📋 Click to Copy' }, 2000)
+    } catch {
+      document.getElementById('resetKey').select()
+      document.execCommand('copy')
+    }
+  }
+
+  // Allow Enter key to generate
+  document.getElementById('requestCode').addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') generate()
+  })
+
+  // Auto-format as XXXX-XXXX-XXXX while typing
+  document.getElementById('requestCode').addEventListener('input', (e) => {
+    let val = e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '')
+    if (val.length > 4)  val = val.slice(0, 4)  + '-' + val.slice(4)
+    if (val.length > 9)  val = val.slice(0, 9)  + '-' + val.slice(9)
+    if (val.length > 14) val = val.slice(0, 14)
+    e.target.value = val
+  })
+</script>
+</body>
+</html>

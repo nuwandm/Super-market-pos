@@ -2,11 +2,12 @@ import { useState, useRef, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import dreamLabsLogo from '@/assets/dream-labs-logo.png'
 import { toast } from 'sonner'
-import { Store, Delete, Keyboard } from 'lucide-react'
+import { Store, Delete, Keyboard, KeyRound, Copy, Check, ArrowRight } from 'lucide-react'
 import { api } from '@/lib/api'
 import { useAuthStore } from '@/stores/auth.store'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog'
 
 export default function LoginPage() {
   const [staffCode,  setStaffCode]  = useState('')
@@ -17,6 +18,16 @@ export default function LoginPage() {
   const navigate    = useNavigate()
   const staffCodeRef = useRef<HTMLInputElement>(null)
   const handleLoginRef = useRef<() => Promise<void>>(null!)
+
+  // Forgot PIN state
+  const [forgotOpen,    setForgotOpen]    = useState(false)
+  const [forgotStep,    setForgotStep]    = useState<1 | 2>(1)
+  const [forgotCode,    setForgotCode]    = useState('')
+  const [requestCode,   setRequestCode]   = useState('')
+  const [resetKey,      setResetKey]      = useState('')
+  const [newPinStr,     setNewPinStr]     = useState('')
+  const [forgotLoading, setForgotLoading] = useState(false)
+  const [copied,        setCopied]        = useState(false)
 
   useEffect(() => {
     staffCodeRef.current?.focus()
@@ -105,6 +116,70 @@ export default function LoginPage() {
   function enterPinMode() {
     staffCodeRef.current?.blur()
     setPinFocused(true)
+  }
+
+  async function openForgot() {
+    setForgotStep(1)
+    setRequestCode('')
+    setResetKey('')
+    setNewPinStr('')
+    setCopied(false)
+    setForgotOpen(true)
+    // Auto-fill super admin username from DB
+    try {
+      const res = await api.auth.getSuperAdminCode()
+      if (res.success && res.data?.staffCode) setForgotCode(res.data.staffCode)
+      else setForgotCode(staffCode.trim().toUpperCase())
+    } catch {
+      setForgotCode(staffCode.trim().toUpperCase())
+    }
+  }
+
+  function closeForgot() {
+    setForgotOpen(false)
+    setForgotStep(1)
+    setForgotCode('')
+    setRequestCode('')
+    setResetKey('')
+    setNewPinStr('')
+    setCopied(false)
+  }
+
+  async function getRequestCode() {
+    if (!forgotCode.trim()) { toast.error('Enter your username'); return }
+    setForgotLoading(true)
+    try {
+      const res = await api.auth.getRequestCode(forgotCode.trim().toUpperCase())
+      if (!res.success) { toast.error(res.error ?? 'Failed'); return }
+      setRequestCode(res.data.requestCode)
+      setForgotStep(2)
+    } catch {
+      toast.error('Failed to generate request code')
+    } finally {
+      setForgotLoading(false)
+    }
+  }
+
+  async function doResetPin() {
+    if (!resetKey.trim()) { toast.error('Enter the reset key from developer'); return }
+    if (newPinStr.length < 4) { toast.error('New PIN must be at least 4 digits'); return }
+    setForgotLoading(true)
+    try {
+      const res = await api.auth.resetSuperAdminPin(forgotCode.trim().toUpperCase(), resetKey.trim(), newPinStr)
+      if (!res.success) { toast.error(res.error ?? 'Reset failed'); return }
+      toast.success('PIN reset successfully. Please sign in with your new PIN.')
+      closeForgot()
+    } catch {
+      toast.error('Reset failed')
+    } finally {
+      setForgotLoading(false)
+    }
+  }
+
+  function copyRequestCode() {
+    navigator.clipboard.writeText(requestCode)
+    setCopied(true)
+    setTimeout(() => setCopied(false), 2000)
   }
 
   return (
@@ -226,8 +301,114 @@ export default function LoginPage() {
           >
             {loading ? 'Signing in...' : 'Sign In'}
           </Button>
+
+          <div className="text-center pt-1">
+            <button
+              type="button"
+              className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-primary transition-colors mx-auto"
+              onClick={openForgot}
+              tabIndex={-1}
+            >
+              <KeyRound className="h-3 w-3" />
+              Forgot PIN? (Super Admin only)
+            </button>
+          </div>
         </div>
       </div>
+
+      {/* Forgot PIN dialog */}
+      <Dialog open={forgotOpen} onOpenChange={(o) => !o && closeForgot()}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <KeyRound className="h-4 w-4 text-primary" />
+              Reset Super Admin PIN
+            </DialogTitle>
+            <DialogDescription>
+              {forgotStep === 1
+                ? 'Generate a request code and send it to your developer to receive a reset key.'
+                : 'Enter the reset key provided by your developer and set a new PIN.'}
+            </DialogDescription>
+          </DialogHeader>
+
+          {forgotStep === 1 ? (
+            <div className="space-y-4 pt-2">
+              <div className="space-y-1.5">
+                <label className="text-sm font-medium">Username</label>
+                <Input
+                  value={forgotCode}
+                  readOnly
+                  placeholder="Loading..."
+                  className="font-mono uppercase tracking-widest bg-muted text-muted-foreground"
+                />
+              </div>
+              <Button className="w-full" onClick={getRequestCode} disabled={forgotLoading || !forgotCode.trim()}>
+                {forgotLoading ? 'Generating...' : (
+                  <span className="flex items-center gap-2">Get Request Code <ArrowRight className="h-4 w-4" /></span>
+                )}
+              </Button>
+            </div>
+          ) : (
+            <div className="space-y-4 pt-2">
+              {/* Request code display */}
+              <div className="space-y-1.5">
+                <label className="text-xs text-muted-foreground font-medium uppercase tracking-wide">Your Request Code</label>
+                <div className="flex items-center gap-2">
+                  <div className="flex-1 rounded-md border border-border bg-muted px-3 py-2 font-mono text-lg font-bold tracking-widest text-center select-all">
+                    {requestCode}
+                  </div>
+                  <Button variant="outline" size="icon" onClick={copyRequestCode} title="Copy">
+                    {copied ? <Check className="h-4 w-4 text-green-500" /> : <Copy className="h-4 w-4" />}
+                  </Button>
+                </div>
+                <p className="text-xs text-muted-foreground">Send this code to your developer (WhatsApp: 070 615 1051)</p>
+              </div>
+
+              {/* Reset key input */}
+              <div className="space-y-1.5">
+                <label className="text-sm font-medium">Reset Key (from developer)</label>
+                <Input
+                  value={resetKey}
+                  onChange={(e) => setResetKey(e.target.value.toUpperCase())}
+                  placeholder="XXXXX-XXXXX"
+                  className="font-mono tracking-widest text-center"
+                  autoComplete="off"
+                  maxLength={11}
+                />
+              </div>
+
+              {/* New PIN input */}
+              <div className="space-y-1.5">
+                <label className="text-sm font-medium">New PIN (4–6 digits)</label>
+                <Input
+                  type="password"
+                  inputMode="numeric"
+                  value={newPinStr}
+                  onChange={(e) => setNewPinStr(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                  onKeyDown={(e) => { if (e.key === 'Enter') doResetPin() }}
+                  placeholder="••••••"
+                  className="text-center text-lg tracking-widest"
+                  autoComplete="new-password"
+                  maxLength={6}
+                />
+              </div>
+
+              <div className="flex gap-2">
+                <Button variant="outline" className="flex-1" onClick={() => setForgotStep(1)}>
+                  Back
+                </Button>
+                <Button
+                  className="flex-1"
+                  onClick={doResetPin}
+                  disabled={forgotLoading || !resetKey.trim() || newPinStr.length < 4}
+                >
+                  {forgotLoading ? 'Resetting...' : 'Reset PIN'}
+                </Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
 
       {/* Vendor branding */}
       <div className="flex flex-col items-center gap-1.5">

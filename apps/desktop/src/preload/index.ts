@@ -15,9 +15,12 @@ const api = {
     complete: (data: Record<string, unknown>) => invoke('setup:complete', data),
   },
   auth: {
-    login:      (staffCode: string, pin: string)   => invoke('auth:login', staffCode, pin),
-    getSession: ()                                  => invoke('auth:getSession'),
-    getContext: (branchId: string)                  => invoke('auth:getContext', branchId),
+    login:             (staffCode: string, pin: string)                              => invoke('auth:login', staffCode, pin),
+    getSession:        ()                                                             => invoke('auth:getSession'),
+    getContext:        (branchId: string)                                             => invoke('auth:getContext', branchId),
+    getSuperAdminCode: ()                                                             => invoke('auth:getSuperAdminCode'),
+    getRequestCode:    (staffCode: string)                                            => invoke('auth:getRequestCode', staffCode),
+    resetSuperAdminPin:(staffCode: string, resetKey: string, newPin: string)          => invoke('auth:resetSuperAdminPin', staffCode, resetKey, newPin),
   },
 
   suppliers: {
