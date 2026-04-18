@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useMemo } from 'react'
 import { toast } from 'sonner'
 import {
-  Plus, Search, Eye, Trash2, PackagePlus, CalendarIcon, ChevronDown, ChevronUp,
+  Search, Eye, Trash2, PackagePlus, CalendarIcon,
 } from 'lucide-react'
 import { format } from 'date-fns'
 import { api } from '@/lib/api'
@@ -87,7 +87,6 @@ export default function GRNPage() {
   const [lines,          setLines]          = useState<LineItem[]>([])
   const [productSearch,  setProductSearch]  = useState('')
   const [saving,         setSaving]         = useState(false)
-  const [expandedGRN,    setExpandedGRN]    = useState<string | null>(null)
 
   const load = useCallback(async () => {
     if (!branchId) return
@@ -108,7 +107,7 @@ export default function GRNPage() {
   useEffect(() => { load() }, [load])
 
   function openCreate() {
-    setSupplierId(''); setInvoiceNumber(''); setReceivedDate(new Date())
+    setSupplierId('none'); setInvoiceNumber(''); setReceivedDate(new Date())
     setNote(''); setUpdateCost(true); setLines([]); setProductSearch('')
     setCreateOpen(true)
   }
@@ -162,7 +161,7 @@ export default function GRNPage() {
     try {
       const res = await api.grn.create({
         branchId,
-        supplierId:      supplierId || undefined,
+        supplierId:      (supplierId && supplierId !== 'none') ? supplierId : undefined,
         invoiceNumber:   invoiceNumber.trim() || undefined,
         receivedAt:      receivedDate.getTime(),
         note:            note.trim() || undefined,
@@ -275,7 +274,7 @@ export default function GRNPage() {
                       <SelectValue placeholder="Select supplier (optional)" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="">No supplier</SelectItem>
+                      <SelectItem value="none">No supplier</SelectItem>
                       {suppliers.filter((s) => s.isActive).map((s) => (
                         <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
                       ))}
