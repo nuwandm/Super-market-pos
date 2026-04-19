@@ -172,7 +172,7 @@ export default function SetupPage() {
               <Store className="h-7 w-7 text-primary-foreground" />
             </div>
           </div>
-          <h1 className="text-2xl font-bold">Welcome to Supermarket POS</h1>
+          <h1 className="text-2xl font-bold">Welcome to Dream Labs POS</h1>
           <p className="text-sm text-muted-foreground">Set up your shop to start your 14-day free trial</p>
         </div>
 

@@ -201,7 +201,7 @@ export default function LoginPage() {
               <Store className="h-7 w-7 text-primary-foreground" />
             </div>
           </div>
-          <h1 className="text-2xl font-bold">Supermarket POS</h1>
+          <h1 className="text-2xl font-bold">Dream Labs POS</h1>
           <p className="text-sm text-muted-foreground">Sign in with your username and PIN</p>
         </div>
 

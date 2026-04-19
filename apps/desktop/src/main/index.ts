@@ -41,7 +41,7 @@ function createWindow(): void {
 
 app.whenReady().then(async () => {
   if (process.platform === 'win32') {
-    app.setAppUserModelId('com.supermarketpos.desktop')
+    app.setAppUserModelId('com.dreamlabs.pos')
   }
 
   app.on('browser-window-created', (_, window) => {

@@ -1,8 +1,8 @@
 @echo off
-title Supermarket POS - Reset Tool
+title Dream Labs POS - Reset Tool
 echo.
 echo ============================================
-echo   Supermarket POS - Factory Reset Tool
+echo   Dream Labs POS - Factory Reset Tool
 echo   Dream Labs IT Solutions
 echo ============================================
 echo.
@@ -14,9 +14,11 @@ set "DB_FILE=supermarket-pos.db"
 
 :: Search common Electron userData locations
 for %%P in (
+  "%APPDATA%\Dream Labs POS"
   "%APPDATA%\Supermarket POS"
   "%APPDATA%\supermarket-pos-desktop"
   "%APPDATA%\Supermarket"
+  "%LOCALAPPDATA%\Dream Labs POS"
   "%LOCALAPPDATA%\Supermarket POS"
   "%LOCALAPPDATA%\supermarket-pos-desktop"
   "%LOCALAPPDATA%\Supermarket"
@@ -73,12 +75,12 @@ echo Deleting database...
 del /f /q "%FOUND%"
 
 if exist "%FOUND%" (
-  echo [ERROR] Could not delete the file. Make sure Supermarket POS is closed.
+  echo [ERROR] Could not delete the file. Make sure Dream Labs POS is closed.
   echo Please close the app and run this tool again.
 ) else (
   echo [SUCCESS] Database deleted.
   echo.
-  echo The next time you open Supermarket POS, the setup page will appear.
+  echo The next time you open Dream Labs POS, the setup page will appear.
 )
 
 echo.

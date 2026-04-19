@@ -1,8 +1,8 @@
 {
   "name": "supermarket-pos-desktop",
-  "productName": "Supermarket POS",
+  "productName": "Dream Labs POS",
   "version": "1.0.0",
-  "description": "Supermarket Point of Sale Desktop Application",
+  "description": "Dream Labs Point of Sale Desktop Application",
   "author": "Nuwan",
   "private": true,
   "main": "./out/main/index.js",
@@ -68,8 +68,8 @@
     "vite": "^5.3.1"
   },
   "build": {
-    "appId": "com.supermarketpos.desktop",
-    "productName": "Supermarket POS",
+    "appId": "com.dreamlabs.pos",
+    "productName": "Dream Labs POS",
     "electronVersion": "31.7.7",
     "directories": {
       "output": "dist"
