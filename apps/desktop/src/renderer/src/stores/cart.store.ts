@@ -15,6 +15,7 @@ interface CartState {
   setCustomer:  (id: string | null) => void
   setNote:      (note: string) => void
   clear:        () => void
+  restore:      (snapshot: { items: CartItem[]; discount: number; discountType: 'percent' | 'fixed'; customerId: string | null; note: string }) => void
 
   // Derived
   subtotal:     () => number
@@ -63,6 +64,7 @@ export const useCartStore = create<CartState>((set, get) => ({
   setCustomer:  (customerId) => set({ customerId }),
   setNote:      (note) => set({ note }),
   clear:        () => set({ items: [], discount: 0, discountType: 'percent', customerId: null, note: '' }),
+  restore:      (snapshot) => set(snapshot),
 
   subtotal:    () => get().items.reduce((sum, i) => sum + i.total, 0),
   discountAmt: () => {

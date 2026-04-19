@@ -106,6 +106,8 @@ export interface Product {
   updatedAt: number
   // Joined fields (optional)
   qtyOnHand?: number
+  unitAbbr?: string | null
+  categoryName?: string | null
   category?: Category
   unit?: Unit
 }

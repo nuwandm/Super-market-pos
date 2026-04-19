@@ -90,9 +90,11 @@ export function registerSalesIPC(): void {
     try {
       const db = getDb()
 
-      // 0. Credit payment pre-check
-      const creditPayment = data.payments.find((p) => p.method === 'credit')
-      if (creditPayment && data.customerId) {
+      // 0. Credit payment pre-check (sum all credit payments — wallet + deferred can both be 'credit')
+      const totalCreditAmount = data.payments
+        .filter((p) => p.method === 'credit')
+        .reduce((sum, p) => sum + p.amount, 0)
+      if (totalCreditAmount > 0 && data.customerId) {
         const custRows = await db
           .select({ creditBalance: schema.customers.creditBalance, creditLimit: schema.customers.creditLimit })
           .from(schema.customers)
@@ -100,13 +102,13 @@ export function registerSalesIPC(): void {
           .limit(1)
         if (custRows.length > 0) {
           const { creditBalance, creditLimit } = custRows[0]
-          const newBalance = creditBalance - creditPayment.amount
+          const newBalance = creditBalance - totalCreditAmount
           if (newBalance < -creditLimit) {
             const available = creditBalance + creditLimit
             return { success: false, error: `Insufficient credit. Available: ${available.toFixed(2)}` }
           }
         }
-      } else if (creditPayment && !data.customerId) {
+      } else if (totalCreditAmount > 0 && !data.customerId) {
         return { success: false, error: 'A customer must be selected for credit payment' }
       }
 
@@ -190,12 +192,12 @@ export function registerSalesIPC(): void {
 
       // 4. Apply credit balance change + update totalPurchases if customer linked
       if (data.customerId) {
-        if (creditPayment) {
+        if (totalCreditAmount > 0) {
           await applyCredit({
             customerId:  data.customerId,
             branchId:    data.branchId,
             staffId:     data.staffId,
-            amount:      -creditPayment.amount,  // negative = credit spent
+            amount:      -totalCreditAmount,  // negative = credit spent (wallet + deferred)
             referenceId: saleId,
           })
         }

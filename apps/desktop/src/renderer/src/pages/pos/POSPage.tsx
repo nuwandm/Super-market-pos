@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { toast } from 'sonner'
-import { Search, Trash2, Plus, Minus, CreditCard, X, ReceiptText, Printer, CheckCircle2, UserCheck, UserCircle, Clock, Play, LogOut } from 'lucide-react'
+import { Search, Trash2, Plus, Minus, CreditCard, X, ReceiptText, Printer, CheckCircle2, UserCheck, UserCircle, Clock, Play, LogOut, Bookmark, BookOpen } from 'lucide-react'
 import { api } from '@/lib/api'
 import { useAuthStore } from '@/stores/auth.store'
 import { useCartStore } from '@/stores/cart.store'
@@ -30,6 +30,19 @@ interface SessionReport {
   returnCount: number
 }
 
+interface ParkedCart {
+  id: string
+  label: string
+  items: import('@pos/shared-types').CartItem[]
+  discount: number
+  discountType: 'percent' | 'fixed'
+  customerId: string | null
+  customerName: string | null
+  note: string
+  parkedAt: number
+  total: number
+}
+
 type PayMethod = 'cash' | 'card' | 'mobile_pay' | 'credit'
 
 export default function POSPage() {
@@ -47,6 +60,11 @@ export default function POSPage() {
   const [payDialog, setPayDialog]   = useState(false)
   const [payMethod, setPayMethod]   = useState<PayMethod>('cash')
   const [cashInput, setCashInput]   = useState('')
+  const [discountInput, setDiscountInput] = useState('')
+  const [discountMode,  setDiscountMode]  = useState<'percent' | 'fixed'>('percent')
+  const [parkedCarts,   setParkedCarts]   = useState<ParkedCart[]>([])
+  const [parkedDialog,  setParkedDialog]  = useState(false)
+  const parkedCounter = useRef(0)
   const [processing,   setProcessing]   = useState(false)
   const [lastReceipt,  setLastReceipt]  = useState<string | null>(null)
   const [lastSaleId,   setLastSaleId]   = useState<string | null>(null)
@@ -188,7 +206,7 @@ export default function POSPage() {
       discountAmount: 0,
       taxAmount:      0,
       total:          product.sellingPrice,
-      unitAbbr:       product.unit?.abbreviation ?? '',
+      unitAbbr:       product.unitAbbr ?? product.unit?.abbreviation ?? '',
     })
   }
 
@@ -265,6 +283,7 @@ export default function POSPage() {
       setSelectedCustomerData(null)
       setPayDialog(false)
       setCashInput('')
+      resetDiscount()
       setSuccessDialog(true)
     } catch {
       toast.error('Sale failed')
@@ -302,6 +321,72 @@ export default function POSPage() {
     setSelectedCustomerData(null)
     setCustomerSearch('')
     setCustomerResults([])
+  }
+
+  function applyDiscount(val: string, mode: 'percent' | 'fixed') {
+    setDiscountInput(val)
+    setDiscountMode(mode)
+    const num = parseFloat(val)
+    cart.setDiscount(isNaN(num) ? 0 : num, mode)
+  }
+
+  function resetDiscount() {
+    setDiscountInput('')
+    setDiscountMode('percent')
+    cart.setDiscount(0, 'percent')
+  }
+
+  function parkCurrentCart(silent = false) {
+    if (cart.items.length === 0) { if (!silent) toast.error('Cart is empty'); return false }
+    parkedCounter.current += 1
+    const label = `Bill #${parkedCounter.current}`
+    setParkedCarts((prev) => [...prev, {
+      id:           Date.now().toString(),
+      label,
+      items:        [...cart.items],
+      discount:     cart.discount,
+      discountType: cart.discountType,
+      customerId:   cart.customerId,
+      customerName: selectedCustomer?.name ?? null,
+      note:         cart.note,
+      parkedAt:     Date.now(),
+      total:        cart.total(),
+    }])
+    cart.clear()
+    resetDiscount()
+    setSelectedCustomer(null)
+    setSelectedCustomerData(null)
+    if (!silent) toast.success(`Parked as ${label}`)
+    return true
+  }
+
+  async function resumeParked(parked: ParkedCart) {
+    if (cart.items.length > 0) parkCurrentCart(true)
+    cart.restore({
+      items:        parked.items,
+      discount:     parked.discount,
+      discountType: parked.discountType,
+      customerId:   parked.customerId,
+      note:         parked.note,
+    })
+    setDiscountInput(parked.discount > 0 ? String(parked.discount) : '')
+    setDiscountMode(parked.discountType)
+    if (parked.customerId && parked.customerName) {
+      setSelectedCustomer({ id: parked.customerId, name: parked.customerName })
+      try {
+        const res = await api.customers.getById(parked.customerId)
+        if (res.success && res.data) {
+          const d = res.data as Record<string, unknown>
+          setSelectedCustomerData({ creditBalance: Number(d.creditBalance ?? 0), creditLimit: Number(d.creditLimit ?? 0) })
+        }
+      } catch { /* non-fatal */ }
+    } else {
+      setSelectedCustomer(null)
+      setSelectedCustomerData(null)
+    }
+    setParkedCarts((prev) => prev.filter((p) => p.id !== parked.id))
+    setParkedDialog(false)
+    toast.success(`Resumed ${parked.label}`)
   }
 
   async function printReceipt() {
@@ -411,35 +496,65 @@ export default function POSPage() {
       {/* RIGHT: Cart */}
       <div className="flex w-80 shrink-0 flex-col border-l border-border bg-card">
         {/* Cart header */}
-        <div className="flex items-center justify-between px-4 py-3 border-b border-border">
-          <h2 className="font-semibold">Cart</h2>
-          <div className="flex items-center gap-2">
+        <div className="border-b border-border">
+          {/* Row 1: title + session status */}
+          <div className="flex items-center justify-between px-4 pt-3 pb-2">
+            <div className="flex items-center gap-2">
+              <h2 className="font-semibold text-base">Cart</h2>
+              {cart.items.length > 0 && (
+                <span className="rounded-full bg-primary/10 text-primary text-[11px] font-bold px-1.5 py-0.5 leading-none">
+                  {cart.items.reduce((s, i) => s + i.qty, 0)}
+                </span>
+              )}
+            </div>
             {cashSession ? (
-              <Button
-                variant="ghost"
-                size="sm"
-                className="h-6 text-xs text-green-600 hover:text-red-600 hover:bg-red-50 gap-1"
+              <button
                 onClick={() => { setClosingCash(''); setEodReport(null); setCloseSessionDialog(true) }}
-                title="Close cash session"
+                className="flex items-center gap-1.5 text-[11px] font-medium text-green-700 bg-green-50 hover:bg-green-100 border border-green-200 rounded-full px-2.5 py-1 transition-colors"
               >
-                <Clock className="h-3 w-3" />
-                <span>Close Session</span>
-              </Button>
+                <span className="h-1.5 w-1.5 rounded-full bg-green-500 shrink-0" />
+                Session Open · Close
+              </button>
             ) : (
-              <Button
-                variant="outline"
-                size="sm"
-                className="h-6 text-xs text-amber-600 border-amber-300 hover:bg-amber-50"
+              <button
                 onClick={() => { setFloatAmount(''); setOpenSessionDialog(true) }}
+                className="flex items-center gap-1.5 text-[11px] font-medium text-amber-700 bg-amber-50 hover:bg-amber-100 border border-amber-200 rounded-full px-2.5 py-1 transition-colors"
               >
-                <Play className="h-3 w-3 mr-1" />
-                Open Session
-              </Button>
+                <span className="h-1.5 w-1.5 rounded-full bg-amber-400 shrink-0" />
+                No Session · Open
+              </button>
             )}
-            {cart.items.length > 0 && (
-              <Button variant="ghost" size="sm" onClick={cart.clear} className="text-destructive hover:text-destructive">
-                <Trash2 className="h-4 w-4 mr-1" /> Clear
-              </Button>
+          </div>
+          {/* Row 2: cart actions + parked count */}
+          <div className="flex items-center justify-between px-3 pb-3 gap-2">
+            <div className="flex items-center gap-1.5">
+              <button
+                onClick={() => parkCurrentCart()}
+                disabled={cart.items.length === 0}
+                className="flex items-center gap-1.5 rounded-md border border-blue-200 bg-blue-50 px-2.5 py-1.5 text-[11px] font-semibold text-blue-600 transition-colors hover:bg-blue-100 hover:border-blue-300 disabled:opacity-35 disabled:cursor-not-allowed"
+              >
+                <Bookmark className="h-3 w-3" />
+                Park Bill
+              </button>
+              <button
+                onClick={cart.clear}
+                disabled={cart.items.length === 0}
+                className="flex items-center gap-1.5 rounded-md border border-red-200 bg-red-50 px-2.5 py-1.5 text-[11px] font-semibold text-red-500 transition-colors hover:bg-red-100 hover:border-red-300 disabled:opacity-35 disabled:cursor-not-allowed"
+              >
+                <Trash2 className="h-3 w-3" />
+                Clear
+              </button>
+            </div>
+            {parkedCarts.length > 0 ? (
+              <button
+                onClick={() => setParkedDialog(true)}
+                className="flex items-center gap-1.5 rounded-md border border-amber-200 bg-amber-50 px-2.5 py-1.5 text-[11px] font-semibold text-amber-700 transition-colors hover:bg-amber-100 hover:border-amber-300"
+              >
+                <BookOpen className="h-3 w-3" />
+                {parkedCarts.length} Parked
+              </button>
+            ) : (
+              <span className="text-[11px] text-muted-foreground/40 italic">no parked bills</span>
             )}
           </div>
         </div>
@@ -749,8 +864,59 @@ export default function POSPage() {
         </DialogContent>
       </Dialog>
 
+      {/* Parked Bills Dialog */}
+      <Dialog open={parkedDialog} onOpenChange={setParkedDialog}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <BookOpen className="h-5 w-5 text-amber-600" />
+              Parked Bills ({parkedCarts.length})
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-2 max-h-96 overflow-y-auto py-1">
+            {parkedCarts.length === 0 ? (
+              <p className="text-sm text-muted-foreground text-center py-8">No parked bills</p>
+            ) : (
+              parkedCarts.map((p) => (
+                <div key={p.id} className="flex items-center justify-between rounded-lg border border-border bg-muted/40 px-4 py-3 gap-3">
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2">
+                      <span className="font-semibold text-sm">{p.label}</span>
+                      {p.customerName && (
+                        <span className="text-xs text-muted-foreground truncate">· {p.customerName}</span>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-3 mt-0.5 text-xs text-muted-foreground">
+                      <span>{p.items.length} item{p.items.length !== 1 ? 's' : ''}</span>
+                      <span className="font-mono font-semibold text-foreground">{formatCurrency(p.total, currency)}</span>
+                      <span>{new Date(p.parkedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-1 shrink-0">
+                    <Button size="sm" className="h-7 text-xs" onClick={() => resumeParked(p)}>
+                      Resume
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="h-7 w-7 p-0 text-muted-foreground hover:text-destructive"
+                      onClick={() => setParkedCarts((prev) => prev.filter((x) => x.id !== p.id))}
+                    >
+                      <X className="h-3.5 w-3.5" />
+                    </Button>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setParkedDialog(false)}>Close</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       {/* Payment Dialog */}
-      <Dialog open={payDialog} onOpenChange={(o) => { if (!processing) setPayDialog(o) }}>
+      <Dialog open={payDialog} onOpenChange={(o) => { if (!processing) { setPayDialog(o); if (!o) resetDiscount() } }}>
         <DialogContent
           className="max-w-sm"
           onKeyDown={(e) => {
@@ -765,10 +931,48 @@ export default function POSPage() {
           </DialogHeader>
 
           <div className="space-y-4">
+            {/* Discount */}
+            <div className="space-y-1.5">
+              <Label>Discount</Label>
+              <div className="flex gap-1.5">
+                <div className="flex rounded-md border border-border overflow-hidden shrink-0">
+                  <button
+                    onClick={() => applyDiscount(discountInput, 'percent')}
+                    className={`px-3 py-1.5 text-xs font-semibold transition-colors ${discountMode === 'percent' ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground hover:bg-accent'}`}
+                  >%</button>
+                  <button
+                    onClick={() => applyDiscount(discountInput, 'fixed')}
+                    className={`px-3 py-1.5 text-xs font-semibold transition-colors ${discountMode === 'fixed' ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground hover:bg-accent'}`}
+                  >{currency}</button>
+                </div>
+                <Input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={discountInput}
+                  onChange={(e) => applyDiscount(e.target.value, discountMode)}
+                  placeholder="0"
+                  className="font-mono"
+                />
+              </div>
+            </div>
+
             {/* Amount due */}
-            <div className="rounded-lg bg-muted p-4 text-center">
-              <p className="text-sm text-muted-foreground">Amount Due</p>
-              <p className="text-3xl font-bold font-mono text-primary">
+            <div className="rounded-lg bg-muted p-4">
+              {cart.discountAmt() > 0 && (
+                <div className="flex justify-between text-sm text-muted-foreground mb-1.5">
+                  <span>Subtotal</span>
+                  <span className="font-mono">{formatCurrency(cart.subtotal(), currency)}</span>
+                </div>
+              )}
+              {cart.discountAmt() > 0 && (
+                <div className="flex justify-between text-sm text-green-600 mb-2">
+                  <span>Discount ({discountMode === 'percent' ? `${discountInput}%` : currency})</span>
+                  <span className="font-mono">- {formatCurrency(cart.discountAmt(), currency)}</span>
+                </div>
+              )}
+              <p className="text-sm text-muted-foreground text-center">Amount Due</p>
+              <p className="text-3xl font-bold font-mono text-primary text-center">
                 {formatCurrency(total, currency)}
               </p>
             </div>
