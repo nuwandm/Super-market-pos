@@ -837,6 +837,315 @@ function BackupTab() {
   )
 }
 
+// ─── Receipt Preview Tab ──────────────────────────────────────────────────────
+
+function ReceiptPreviewTab() {
+  const { supermarket, branch, session, setContext } = useAuthStore()
+  const currency = supermarket?.currency ?? 'LKR'
+
+  const [form, setForm] = useState({
+    headerText:      supermarket?.receiptHeader   ?? '',
+    footerText:      supermarket?.receiptFooter   ?? '',
+    language:        supermarket?.receiptLanguage ?? 'en',
+    showLogo:        !!supermarket?.logoPath,
+    showVatNumber:   !!(supermarket?.vatNumber),
+    showTaxLine:     true,
+    showCashierName: true,
+    paperSize:       '80mm' as '58mm' | '80mm',
+  })
+  const [saving, setSaving] = useState(false)
+
+  useEffect(() => {
+    if (!supermarket) return
+    setForm((f) => ({
+      ...f,
+      headerText:    supermarket.receiptHeader   ?? '',
+      footerText:    supermarket.receiptFooter   ?? '',
+      language:      supermarket.receiptLanguage ?? 'en',
+      showLogo:      !!supermarket.logoPath,
+      showVatNumber: !!(supermarket.vatNumber),
+    }))
+  }, [supermarket])
+
+  async function save() {
+    if (!supermarket) return
+    setSaving(true)
+    try {
+      const res = await api.settings.updateSupermarket(supermarket.id, {
+        receiptHeader:   form.headerText,
+        receiptFooter:   form.footerText,
+        receiptLanguage: form.language,
+      })
+      if (!res.success) { toast.error(res.error ?? 'Save failed'); return }
+      if (session?.branchId) {
+        const ctx = await api.auth.getContext(session.branchId)
+        if (ctx.success && ctx.data) setContext(ctx.data.supermarket, ctx.data.branch)
+      }
+      toast.success('Receipt settings saved')
+    } catch { toast.error('Save failed') }
+    finally { setSaving(false) }
+  }
+
+  // ── Sample data ──
+  const sampleItemsByLang = {
+    en: [
+      { name: 'Fresh Milk 1L',   qty: 2, price: 220, total: 440 },
+      { name: 'White Sugar 1kg', qty: 1, price: 195, total: 195 },
+      { name: 'Coca-Cola 330ml', qty: 3, price:  85, total: 255 },
+    ],
+    si: [
+      { name: 'නැවුම් කිරි 1L',      qty: 2, price: 220, total: 440 },
+      { name: 'සුදු සීනි 1kg',       qty: 1, price: 195, total: 195 },
+      { name: 'කොකා-කෝලා 330ml',    qty: 3, price:  85, total: 255 },
+    ],
+    ta: [
+      { name: 'பால் 1L',                   qty: 2, price: 220, total: 440 },
+      { name: 'வெள்ளை சர்க்கரை 1kg',    qty: 1, price: 195, total: 195 },
+      { name: 'கோகோ-கோலா 330ml',         qty: 3, price:  85, total: 255 },
+    ],
+  }
+  const sampleItems = sampleItemsByLang[form.language as keyof typeof sampleItemsByLang] ?? sampleItemsByLang.en
+  const subtotal = 890
+  const discount = 89
+  const taxAmt   = 0
+  const totalAmt = subtotal - discount + taxAmt
+  const cashPaid = 900
+  const changeAmt = cashPaid - totalAmt
+  const now       = new Date()
+  const dateStr   = now.toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' })
+  const timeStr   = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+  function fmt(n: number) { return `${currency} ${n.toFixed(2)}` }
+
+  // ── Translations ──
+  const LABELS = {
+    en: { receipt: 'SALES RECEIPT',        date: 'Date:',         receiptNo: 'Receipt#:', cashier: 'Cashier:',     subtotal: 'Subtotal:', discount: 'Discount:',      tax: 'Tax (0%):', total: 'TOTAL:',      cash: 'Cash:',   change: 'Change:', thankYou: 'Thank you for shopping!' },
+    si: { receipt: 'විකිණුම් රිසිත්පත',   date: 'දිනය:',         receiptNo: 'රිසිත් #:',  cashier: 'අලෙවිකරු:', subtotal: 'උප එකතුව:', discount: 'වට්ටම:',         tax: 'බදු (0%):',  total: 'මුළු:',       cash: 'මුදල්:', change: 'ශේෂය:',  thankYou: 'ඔබේ ගනුදෙනුවට ස්තූතියි!' },
+    ta: { receipt: 'விற்பனை ரசீது',         date: 'தேதி:',         receiptNo: 'ரசீது எண்:', cashier: 'காசாளர்:',   subtotal: 'கூட்டுத்தொகை:', discount: 'தள்ளுபடி:',  tax: 'வரி (0%):',  total: 'மொத்தம்:', cash: 'பணம்:',  change: 'மாற்று:',thankYou: 'நன்றி! மீண்டும் வாருங்கள்!' },
+  } as const
+  const t = LABELS[(form.language as keyof typeof LABELS)] ?? LABELS.en
+  const previewFont = form.language === 'si'
+    ? '"Iskoola Pota", "Noto Sans Sinhala", system-ui, sans-serif'
+    : form.language === 'ta'
+    ? '"Latha", "Noto Sans Tamil", system-ui, sans-serif'
+    : '"Courier New", Courier, monospace'
+
+  return (
+    <div className="flex gap-6 min-h-[600px]">
+      {/* ── Left: form ── */}
+      <div className="w-72 shrink-0 space-y-5 overflow-y-auto pr-1">
+        {/* Paper width */}
+        <div className="space-y-1.5">
+          <Label className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Paper Width</Label>
+          <div className="flex gap-2">
+            {(['58mm', '80mm'] as const).map((size) => (
+              <button
+                key={size}
+                onClick={() => setForm((f) => ({ ...f, paperSize: size }))}
+                className={`flex-1 rounded-lg border py-2 text-sm font-semibold transition-colors ${
+                  form.paperSize === size
+                    ? 'border-primary bg-primary/10 text-primary'
+                    : 'border-border bg-card hover:border-muted-foreground text-foreground'
+                }`}
+              >
+                {size}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Language */}
+        <div className="space-y-1.5">
+          <Label className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Receipt Language</Label>
+          <Select value={form.language} onValueChange={(v) => setForm((f) => ({ ...f, language: v }))}>
+            <SelectTrigger>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="en">🇬🇧 English</SelectItem>
+              <SelectItem value="si">🇱🇰 සිංහල (Sinhala)</SelectItem>
+              <SelectItem value="ta">🇱🇰 தமிழ் (Tamil)</SelectItem>
+            </SelectContent>
+          </Select>
+          <p className="text-[11px] text-muted-foreground">Labels printed on the receipt</p>
+        </div>
+
+        {/* Header text */}
+        <div className="space-y-1.5">
+          <Label className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Header Text</Label>
+          <textarea
+            value={form.headerText}
+            onChange={(e) => setForm((f) => ({ ...f, headerText: e.target.value }))}
+            rows={3}
+            placeholder="e.g. Welcome! Thank you for choosing us."
+            className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm font-mono resize-none focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-0"
+          />
+          <p className="text-[11px] text-muted-foreground">Printed at the top of every receipt</p>
+        </div>
+
+        {/* Footer text */}
+        <div className="space-y-1.5">
+          <Label className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Footer Text</Label>
+          <textarea
+            value={form.footerText}
+            onChange={(e) => setForm((f) => ({ ...f, footerText: e.target.value }))}
+            rows={3}
+            placeholder="e.g. Come again! Visit us at www.example.com"
+            className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm font-mono resize-none focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-0"
+          />
+          <p className="text-[11px] text-muted-foreground">Printed at the bottom of every receipt</p>
+        </div>
+
+        {/* Toggles */}
+        <div className="rounded-xl border border-border bg-card divide-y divide-border">
+          <p className="px-4 py-2.5 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+            Show / Hide Sections
+          </p>
+          {([
+            { key: 'showLogo',        label: 'Company Logo',   note: !supermarket?.logoPath ? 'No logo uploaded' : undefined },
+            { key: 'showVatNumber',   label: 'VAT Number',     note: !supermarket?.vatNumber ? 'No VAT number set' : undefined },
+            { key: 'showTaxLine',     label: 'Tax Line' },
+            { key: 'showCashierName', label: 'Cashier Name' },
+          ] as { key: string; label: string; note?: string }[]).map(({ key, label, note }) => (
+            <div key={key} className="flex items-center justify-between px-4 py-3 gap-3">
+              <div>
+                <p className={`text-sm ${note ? 'text-muted-foreground' : ''}`}>{label}</p>
+                {note && <p className="text-[11px] text-muted-foreground/60">{note}</p>}
+              </div>
+              <Switch
+                checked={form[key as keyof typeof form] as boolean}
+                disabled={!!note}
+                onCheckedChange={(v) => setForm((f) => ({ ...f, [key]: v }))}
+              />
+            </div>
+          ))}
+        </div>
+
+        <Button onClick={save} disabled={saving} className="w-full">
+          {saving ? 'Saving...' : 'Save Receipt Settings'}
+        </Button>
+      </div>
+
+      {/* ── Right: live preview ── */}
+      <div className="flex-1 flex justify-center items-start rounded-xl bg-slate-200/60 dark:bg-slate-800/40 p-8 overflow-auto">
+        <div className="space-y-3 flex flex-col items-center">
+          <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Live Preview</p>
+
+          {/* Receipt paper */}
+          <div
+            className={`bg-white text-black shadow-2xl rounded-sm pb-6 pt-5 px-4 select-none ${
+              form.paperSize === '58mm' ? 'w-52' : 'w-72'
+            }`}
+            style={{ fontFamily: previewFont, fontSize: '11px', lineHeight: '1.55' }}
+          >
+            {/* Logo */}
+            {form.showLogo && supermarket?.logoPath && (
+              <div className="flex justify-center mb-2">
+                <img src={supermarket.logoPath} alt="Logo" className="h-10 object-contain" />
+              </div>
+            )}
+
+            {/* Store info */}
+            <p className="text-center font-bold" style={{ fontSize: '13px' }}>
+              {supermarket?.name ?? 'Dream Labs POS'}
+            </p>
+            <p className="text-center" style={{ fontSize: '10px' }}>{branch?.name ?? 'Main Branch'}</p>
+            {supermarket?.address && (
+              <p className="text-center" style={{ fontSize: '10px' }}>{supermarket.address}</p>
+            )}
+            {supermarket?.phone && (
+              <p className="text-center" style={{ fontSize: '10px' }}>Tel: {supermarket.phone}</p>
+            )}
+            {form.showVatNumber && supermarket?.vatNumber && (
+              <p className="text-center" style={{ fontSize: '10px' }}>VAT: {supermarket.vatNumber}</p>
+            )}
+
+            {/* Custom header */}
+            {form.headerText.trim() && (
+              <p className="text-center mt-1 whitespace-pre-line text-gray-500" style={{ fontSize: '10px' }}>
+                {form.headerText}
+              </p>
+            )}
+
+            {/* Title */}
+            <div className="border-t-2 border-black my-1.5" />
+            <p className="text-center font-bold tracking-widest" style={{ fontSize: '10px' }}>{t.receipt}</p>
+            <div className="border-t border-dashed border-gray-400 my-1" />
+
+            {/* Meta */}
+            <div className="flex justify-between" style={{ fontSize: '10px' }}>
+              <span>{t.date}</span><span>{dateStr} {timeStr}</span>
+            </div>
+            <div className="flex justify-between" style={{ fontSize: '10px' }}>
+              <span>{t.receiptNo}</span><span>0001</span>
+            </div>
+            {form.showCashierName && (
+              <div className="flex justify-between" style={{ fontSize: '10px' }}>
+                <span>{t.cashier}</span><span>{session?.staffName ?? 'Admin'}</span>
+              </div>
+            )}
+
+            <div className="border-t border-dashed border-gray-400 my-1" />
+
+            {/* Items */}
+            {sampleItems.map((item, i) => (
+              <div key={i} className="mb-0.5">
+                <p className="truncate font-medium">{item.name}</p>
+                <div className="flex justify-between pl-3 text-gray-600" style={{ fontSize: '10px' }}>
+                  <span>{item.qty} × {currency} {item.price.toFixed(2)}</span>
+                  <span className="text-black">{currency} {item.total.toFixed(2)}</span>
+                </div>
+              </div>
+            ))}
+
+            <div className="border-t border-dashed border-gray-400 my-1" />
+
+            {/* Totals */}
+            <div className="flex justify-between" style={{ fontSize: '10px' }}>
+              <span>{t.subtotal}</span><span>{fmt(subtotal)}</span>
+            </div>
+            <div className="flex justify-between text-green-700" style={{ fontSize: '10px' }}>
+              <span>{t.discount}</span><span>-{fmt(discount)}</span>
+            </div>
+            {form.showTaxLine && (
+              <div className="flex justify-between text-gray-500" style={{ fontSize: '10px' }}>
+                <span>{t.tax}</span><span>{fmt(taxAmt)}</span>
+              </div>
+            )}
+
+            <div className="border-t-2 border-black my-1" />
+            <div className="flex justify-between font-bold" style={{ fontSize: '13px' }}>
+              <span>{t.total}</span><span>{fmt(totalAmt)}</span>
+            </div>
+            <div className="border-t-2 border-black my-1" />
+
+            {/* Payment */}
+            <div className="flex justify-between" style={{ fontSize: '10px' }}>
+              <span>{t.cash}</span><span>{fmt(cashPaid)}</span>
+            </div>
+            <div className="flex justify-between font-semibold" style={{ fontSize: '10px' }}>
+              <span>{t.change}</span><span>{fmt(changeAmt)}</span>
+            </div>
+
+            <div className="border-t border-dashed border-gray-400 my-1.5" />
+
+            {/* Footer */}
+            {form.footerText.trim() ? (
+              <p className="text-center whitespace-pre-line" style={{ fontSize: '10px' }}>{form.footerText}</p>
+            ) : (
+              <p className="text-center text-gray-400 italic" style={{ fontSize: '10px' }}>{t.thankYou}</p>
+            )}
+
+            <p className="text-center text-gray-400 mt-2" style={{ fontSize: '9px', lineHeight: '1.6' }}>
+              Software by <strong style={{ color: '#888' }}>Dream Labs IT Solutions</strong><br />
+              WhatsApp: 070 615 1051
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
 export default function SettingsPage() {
@@ -850,6 +1159,7 @@ export default function SettingsPage() {
           <TabsTrigger value="units">Units</TabsTrigger>
           <TabsTrigger value="staff">Staff</TabsTrigger>
           <TabsTrigger value="shortcuts">Shortcuts</TabsTrigger>
+          <TabsTrigger value="receipt">Receipt</TabsTrigger>
           <TabsTrigger value="backup">Backup</TabsTrigger>
         </TabsList>
         <TabsContent value="supermarket" className="mt-4">
@@ -866,6 +1176,9 @@ export default function SettingsPage() {
         </TabsContent>
         <TabsContent value="shortcuts" className="mt-4">
           <ShortcutsTab />
+        </TabsContent>
+        <TabsContent value="receipt" className="mt-4">
+          <ReceiptPreviewTab />
         </TabsContent>
         <TabsContent value="backup" className="mt-4">
           <BackupTab />
